@@ -129,25 +129,34 @@ src/
 
 ## Deploying to GitHub Pages
 
-The app ships with a GitHub Actions workflow (`.github/workflows/deploy.yml`)
-that:
+The app ships with a single GitHub Actions workflow
+(`.github/workflows/deploy.yml`) that runs `npm ci && npm run build` and
+publishes `dist/` via the official `actions/deploy-pages` action on every
+push to `main`.
 
-1. Runs `npm ci && npm run build`
-2. Copies `dist/index.html` to `dist/404.html` so direct URLs still load
-   the SPA (`HashRouter` makes this mostly belt-and-braces).
-3. Publishes `dist` via the official `actions/deploy-pages` action.
+### First-time setup
 
-### Repo base path
-
-`vite.config.ts` defaults `base` to `/Pilot_Logbook/`. If your repo or
-custom domain deploys the site at the root, set `VITE_BASE=/` (or
-`VITE_BASE=./`) when you build.
-
-### First-time GitHub Pages setup
-
-1. In **Settings → Pages**, set **Source** to **GitHub Actions**.
+1. In the repo's **Settings → Pages**, set **Source** to **GitHub Actions**.
 2. Push to `main`. The workflow builds and deploys.
 3. Visit `https://<your-user>.github.io/Pilot_Logbook/`.
+
+If GitHub previously auto-added a second "Deploy static content to Pages"
+workflow (`static.yml`), delete it — only `deploy.yml` should exist, or the
+two will race and a raw-source deploy can overwrite the built site.
+
+### Base path
+
+`vite.config.ts` sets `base` to `/Pilot_Logbook/` to match the repo name.
+If you fork under a different repo name or deploy at the root (custom
+domain), override it at build time with `VITE_BASE=/your-repo/` or
+`VITE_BASE=/`.
+
+### Routing and refresh 404s
+
+The app uses `HashRouter` (`src/main.tsx`), so all routes live under `#/…`
+and every page is served by the same `index.html`. This sidesteps the
+classic GitHub Pages SPA refresh-404 problem without a redirect shim. The
+workflow also copies `index.html` to `404.html` as a harmless fallback.
 
 ## Known limitations (proof of concept)
 
