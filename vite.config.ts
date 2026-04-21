@@ -12,27 +12,16 @@ export default defineConfig(({ mode }) => {
     base,
     plugins: [
       react(),
+      // Self-destroying mode: emits an sw.js that unregisters any previously
+      // registered service worker and clears its caches, then removes itself.
+      // Rescues browsers that were stuck on a stale precache from an earlier
+      // Pages deploy. Can be switched back to a normal PWA once the fleet
+      // is known to be clean.
       VitePWA({
         registerType: 'autoUpdate',
+        selfDestroying: true,
         includeAssets: ['favicon.svg', 'icon.svg'],
-        manifest: {
-          name: 'Pilot Logbook',
-          short_name: 'Logbook',
-          description: 'Local-first pilot logbook for flight hours.',
-          theme_color: '#2a6fb5',
-          background_color: '#f1f6fb',
-          display: 'standalone',
-          orientation: 'portrait',
-          scope: base,
-          start_url: base,
-          icons: [
-            { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
-            { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' }
-          ]
-        },
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}']
-        }
+        manifest: false
       })
     ]
   };

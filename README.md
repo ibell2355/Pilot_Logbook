@@ -13,7 +13,8 @@ layout that works equally well on desktop.
 - React + TypeScript + Vite
 - `idb` for IndexedDB
 - `jspdf` + `jspdf-autotable` for printable logs
-- `vite-plugin-pwa` for service worker + manifest
+- `vite-plugin-pwa` is wired in but currently configured in **self-destroying
+  mode** (see "Service worker note" under Deploying)
 - `react-router-dom` using hash routing (works under any base path)
 
 ## Scripts
@@ -157,6 +158,19 @@ The app uses `HashRouter` (`src/main.tsx`), so all routes live under `#/…`
 and every page is served by the same `index.html`. This sidesteps the
 classic GitHub Pages SPA refresh-404 problem without a redirect shim. The
 workflow also copies `index.html` to `404.html` as a harmless fallback.
+
+### Service worker note
+
+`vite-plugin-pwa` is set to `selfDestroying: true` in `vite.config.ts`.
+That emits a `sw.js` whose only job is to unregister itself and delete
+its caches on activation. This is here to rescue any browser that visited
+an earlier broken Pages deploy and ended up with a stuck precache (which
+will silently serve a blank app once the cached asset hashes no longer
+exist). New visitors never register a service worker.
+
+To re-enable a real PWA later, remove `selfDestroying: true` and restore
+the `manifest`/`workbox` config — but only after you're confident no users
+are still on a stale registration.
 
 ## Known limitations (proof of concept)
 

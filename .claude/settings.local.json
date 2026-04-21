@@ -5,7 +5,10 @@
       "Bash(npx tsc:*)",
       "Bash(npx vite:*)",
       "Bash(npm --version)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"root: %{http_code}\\\\n\" http://localhost:4173/)",
+      "Bash(curl -s -o /dev/null -w \"base: %{http_code}\\\\n\" http://localhost:4173/Pilot_Logbook/)",
+      "Bash(curl -s -o /dev/null -w \"main.js: %{http_code}\\\\n\" http://localhost:4173/Pilot_Logbook/assets/index-x2wI12up.js)"
     ]
   }
 }

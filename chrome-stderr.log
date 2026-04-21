@@ -1,0 +1,3 @@
+[40156:43100:0421/011637.255:INFO:components\enterprise\browser\controller\chrome_browser_cloud_management_controller.cc:238] No machine level policy manager exists.
+[40156:11828:0421/011637.338:WARNING:chrome\browser\extensions\external_pref_loader.cc:295] You are using an old-style extension deployment method (external_extensions.json), which will soon be deprecated. (see http://developer.chrome.com/docs/extensions/how-to/distribute/install-extensions)
+[40156:43100:0421/011637.929:INFO:CONSOLE:0] "<meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes">", source: https://ibell2355.github.io/Pilot_Logbook/ (0)
