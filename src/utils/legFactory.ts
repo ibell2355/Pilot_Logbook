@@ -1,81 +1,39 @@
 import type { Leg } from '../types';
 import { newLegId } from './ids';
-import { todayIso } from './time';
 
-export function emptyLeg(logId: string, order: number, defaultCompany = ''): Leg {
+export function emptyLeg(
+  logId: string,
+  order: number,
+  defaults?: { pilot?: string }
+): Leg {
   return {
     id: newLegId(),
     logId,
     order,
-    date: todayIso(),
-    depLocation: '',
-    arrLocation: '',
-    depTime: '',
-    arrTime: '',
-    totalFlightTime: '',
-    totalFlightTimeOverridden: false,
-    aircraftType: '',
-    aircraftReg: '',
-    company: defaultCompany,
-    copilot: '',
-    role: 'PIC',
-    dayNight: 'Day',
-    flightRules: 'VFR',
-    actualInstrument: '',
-    simulatedInstrument: '',
-    remarks: '',
+    pilot: defaults?.pilot ?? '',
+    from: '',
+    to: '',
+    hobbsReading: null,
+    landings: 0,
+    startUpCount: 0,
+    shutdownCount: 0,
+    notes: '',
     updatedAt: Date.now()
   };
 }
 
-const CARRY_KEYS = [
-  'date',
-  'company',
-  'aircraftType',
-  'aircraftReg',
-  'copilot',
-  'role',
-  'flightRules'
-] as const;
-
-function carryForward(prev: Leg): Partial<Leg> {
-  const out: Partial<Leg> = {};
-  for (const key of CARRY_KEYS) {
-    (out as Record<string, unknown>)[key] = prev[key];
-  }
-  out.dayNight = prev.dayNight;
-  return out;
-}
-
 export function nextLegFrom(prev: Leg, logId: string, order: number): Leg {
   return {
-    ...emptyLeg(logId, order),
-    ...carryForward(prev),
-    depLocation: prev.arrLocation,
-    arrLocation: '',
-    depTime: '',
-    arrTime: '',
-    totalFlightTime: '',
-    totalFlightTimeOverridden: false,
-    actualInstrument: '',
-    simulatedInstrument: '',
-    remarks: ''
+    ...emptyLeg(logId, order, { pilot: prev.pilot }),
+    from: prev.to
   };
 }
 
 export function returnLegFrom(prev: Leg, logId: string, order: number): Leg {
   return {
-    ...emptyLeg(logId, order),
-    ...carryForward(prev),
-    depLocation: prev.arrLocation,
-    arrLocation: prev.depLocation,
-    depTime: '',
-    arrTime: '',
-    totalFlightTime: '',
-    totalFlightTimeOverridden: false,
-    actualInstrument: '',
-    simulatedInstrument: '',
-    remarks: ''
+    ...emptyLeg(logId, order, { pilot: prev.pilot }),
+    from: prev.to,
+    to: prev.from
   };
 }
 

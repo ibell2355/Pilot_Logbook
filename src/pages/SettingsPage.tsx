@@ -80,10 +80,10 @@ export function SettingsPage() {
           Backups are small JSON files you can save to your phone, email, or cloud drive.
         </p>
         <p className="note">
-          <strong>Warning:</strong> clearing this browser's site data — by clearing
-          browsing data, reinstalling the app, or using a private window — can remove
-          your locally stored logs. Export a backup regularly to keep a copy outside
-          the device.
+          <strong>Warning:</strong> clearing this browser's site data — clearing
+          browsing data, reinstalling the app, or using a private window — can
+          remove your locally stored logs. Create a backup of any log you want
+          to keep, and save it somewhere off the device.
         </p>
       </section>
 

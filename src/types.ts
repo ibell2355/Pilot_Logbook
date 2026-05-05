@@ -1,6 +1,3 @@
-export type Role = 'PIC' | 'SIC';
-export type DayNight = 'Day' | 'Night';
-export type FlightRules = 'VFR' | 'IFR';
 export type LogStatus = 'open' | 'closed';
 
 export interface Profile {
@@ -9,15 +6,11 @@ export interface Profile {
   licenceNumber: string;
   employeeNumber: string;
   homeBase: string;
-  defaultCompany: string;
+  defaultAircraft: string;
+  defaultPilot: string;
 }
 
-export type PresetType =
-  | 'companies'
-  | 'aircraftTypes'
-  | 'aircraftRegs'
-  | 'locations'
-  | 'copilots';
+export type PresetType = 'pilots' | 'locations' | 'aircraft';
 
 export interface Presets {
   type: PresetType;
@@ -34,30 +27,27 @@ export interface Leg {
   id: string;
   logId: string;
   order: number;
-  date: string;            // ISO date yyyy-mm-dd
-  depLocation: string;
-  arrLocation: string;
-  depTime: string;         // HH:mm (24h)
-  arrTime: string;         // HH:mm (24h)
-  totalFlightTime: string; // HH:mm
-  totalFlightTimeOverridden: boolean;
-  aircraftType: string;
-  aircraftReg: string;
-  company: string;
-  copilot: string;
-  role: Role | '';
-  dayNight: DayNight | '';
-  flightRules: FlightRules | '';
-  actualInstrument: string;    // HH:mm
-  simulatedInstrument: string; // HH:mm
-  remarks: string;
+  pilot: string;
+  from: string;
+  to: string;
+  hobbsReading: number | null;
+  landings: number;
+  startUpCount: number;
+  shutdownCount: number;
+  notes: string;
   updatedAt: number;
 }
 
 export interface Log {
   id: string;
-  title: string;        // auto-generated label, editable later
-  startDate: string;    // ISO date of first leg or creation date
+  title: string;
+  date: string;
+  aircraft: string;
+  hobbsStart: number | null;
+  taft: number | null;
+  hookTime: number | null;
+  inspectionInterval: number;
+  hobbsDueAt: number | null;
   status: LogStatus;
   createdAt: number;
   updatedAt: number;
@@ -66,7 +56,7 @@ export interface Log {
 
 export interface LogBackup {
   format: 'pilot-logbook-backup';
-  version: 1;
+  version: 2;
   exportedAt: number;
   profile: Profile | null;
   log: Log;

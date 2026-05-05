@@ -1,8 +1,4 @@
-import {
-  getLog,
-  saveLeg,
-  saveLog
-} from '../db/database';
+import { getLog, saveLeg, saveLog } from '../db/database';
 import type { Leg, Log, LogBackup, Profile } from '../types';
 import { sanitizeFilename, saveBlob } from './download';
 import { newLegId, newLogId } from './ids';
@@ -15,7 +11,7 @@ export async function downloadBackup(args: {
 }): Promise<void> {
   const payload: LogBackup = {
     format: 'pilot-logbook-backup',
-    version: 1,
+    version: 2,
     exportedAt: Date.now(),
     profile: args.profile,
     log: args.log,
@@ -40,7 +36,7 @@ export async function importBackupFile(text: string): Promise<{ log: Log; legs: 
 
   const originalId = parsed.log.id;
   const existing = await getLog(originalId);
-  const date = parsed.log.startDate || todayIso();
+  const date = parsed.log.date || todayIso();
   const newId = existing ? newLogId(date) : originalId;
   const now = Date.now();
 
@@ -69,7 +65,7 @@ function isBackup(value: unknown): value is LogBackup {
   const v = value as Partial<LogBackup>;
   return (
     v.format === 'pilot-logbook-backup' &&
-    v.version === 1 &&
+    v.version === 2 &&
     !!v.log &&
     Array.isArray(v.legs)
   );

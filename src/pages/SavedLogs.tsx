@@ -10,15 +10,16 @@ import {
   saveSettings
 } from '../db/database';
 import type { Log, Profile } from '../types';
-import { formatDateFriendly, sumDurations } from '../utils/time';
+import { computeTotals } from '../utils/calculations';
+import { formatDateFriendly, formatHours } from '../utils/time';
 import { exportLogPdf } from '../utils/pdf';
-import { downloadBackup } from '../utils/backup';
-import { importBackupFile } from '../utils/backup';
+import { downloadBackup, importBackupFile } from '../utils/backup';
 
 interface LogSummary {
   log: Log;
   legCount: number;
-  totalTime: string;
+  totalAir: number;
+  totalFlight: number;
 }
 
 export function SavedLogs() {
@@ -34,10 +35,12 @@ export function SavedLogs() {
     const withCounts: LogSummary[] = await Promise.all(
       logs.map(async (log) => {
         const legs = await listLegs(log.id);
+        const totals = computeTotals(log, legs);
         return {
           log,
           legCount: legs.length,
-          totalTime: sumDurations(legs.map((l) => l.totalFlightTime)) || '0:00'
+          totalAir: totals.totalAirTime,
+          totalFlight: totals.totalFlightTime
         };
       })
     );
@@ -118,7 +121,7 @@ export function SavedLogs() {
         <p className="empty">No logs saved yet. Start one from the Home screen.</p>
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-          {summaries.map(({ log, legCount, totalTime }) => (
+          {summaries.map(({ log, legCount, totalAir, totalFlight }) => (
             <li key={log.id} style={{ marginBottom: 10 }}>
               <div className="card saved-log-card">
                 <div
@@ -132,11 +135,13 @@ export function SavedLogs() {
                 >
                   <h3>{log.title}</h3>
                   <div className="meta">
-                    <span>{formatDateFriendly(log.startDate)}</span>
+                    <span>{formatDateFriendly(log.date)}</span>
+                    {log.aircraft && <span>{log.aircraft}</span>}
                     <span>
                       {legCount} leg{legCount === 1 ? '' : 's'}
                     </span>
-                    <span>Total {totalTime}</span>
+                    <span>Air {formatHours(totalAir)}</span>
+                    <span>Flight {formatHours(totalFlight)}</span>
                     <span className="pill">
                       {log.status === 'open' ? 'Open' : 'Closed'}
                     </span>

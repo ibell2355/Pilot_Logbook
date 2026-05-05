@@ -1,47 +1,3 @@
-const TIME_RE = /^([01]?\d|2[0-3]):([0-5]\d)$/;
-
-export function isValidTime(value: string): boolean {
-  return TIME_RE.test(value);
-}
-
-export function timeToMinutes(value: string): number | null {
-  const match = TIME_RE.exec(value);
-  if (!match) return null;
-  return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-}
-
-export function minutesToTime(total: number): string {
-  const normalised = ((total % (24 * 60)) + 24 * 60) % (24 * 60);
-  const h = Math.floor(normalised / 60);
-  const m = normalised % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-/**
- * Returns the duration between two 24h HH:mm strings, rolling forward past
- * midnight if arrival is earlier than departure. Empty string if either is
- * invalid.
- */
-export function durationBetween(dep: string, arr: string): string {
-  const depMin = timeToMinutes(dep);
-  const arrMin = timeToMinutes(arr);
-  if (depMin == null || arrMin == null) return '';
-  let diff = arrMin - depMin;
-  if (diff < 0) diff += 24 * 60;
-  return minutesToTime(diff);
-}
-
-export function sumDurations(values: string[]): string {
-  let total = 0;
-  for (const v of values) {
-    const m = timeToMinutes(v);
-    if (m != null) total += m;
-  }
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  return `${h}:${String(m).padStart(2, '0')}`;
-}
-
 export function todayIso(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -60,4 +16,25 @@ export function formatDateFriendly(iso: string): string {
     month: 'short',
     day: '2-digit'
   });
+}
+
+/** Round to 1 decimal place, avoiding -0 and floating-point noise. */
+export function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+/** Format a number as decimal hours to 1 decimal place. Empty for null. */
+export function formatHours(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return '';
+  return round1(n).toFixed(1);
+}
+
+/** Parse a user-entered decimal-hours string. Empty/invalid → null. */
+export function parseHours(value: string): number | null {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return null;
+  return n;
 }

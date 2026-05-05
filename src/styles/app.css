@@ -508,4 +508,144 @@ label {
   color: var(--pill-text);
   font-weight: 600;
   margin-bottom: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.counter {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+  height: 44px;
+}
+
+.counter__btn {
+  flex: 0 0 44px;
+  width: 44px;
+  min-height: 44px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary);
+  padding: 0;
+  line-height: 1;
+}
+
+.counter__btn:hover:not(:disabled) {
+  background: var(--pill-bg);
+}
+
+.counter__value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.readout {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.maint {
+  border-left: 4px solid var(--border-strong);
+}
+
+.maint__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.maint__label {
+  font-weight: 600;
+}
+
+.maint__details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.maint__details strong {
+  color: var(--text);
+}
+
+.maint__edit {
+  margin-top: 6px;
+}
+
+.maint--ok {
+  border-left-color: var(--success);
+}
+
+.maint--ok .maint__label {
+  color: var(--success);
+}
+
+.maint--caution {
+  border-left-color: #d6a032;
+  background: color-mix(in srgb, #d6a032 8%, var(--card));
+}
+
+.maint--caution .maint__label {
+  color: #a46a00;
+}
+
+html[data-theme='dark'] .maint--caution .maint__label {
+  color: #f0b85a;
+}
+
+.maint--overdue {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--card));
+}
+
+.maint--overdue .maint__label {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.pilot-summary {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pilot-summary li {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  font-variant-numeric: tabular-nums;
 }

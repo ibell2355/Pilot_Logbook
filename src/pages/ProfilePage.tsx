@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Layout } from '../components/Layout';
+import { Autocomplete } from '../components/Autocomplete';
 import {
   getAllPresets,
   getProfile,
@@ -9,21 +10,17 @@ import {
 import type { PresetType, Profile } from '../types';
 
 const PRESET_SECTIONS: { type: PresetType; label: string; hint: string }[] = [
-  { type: 'companies', label: 'Companies', hint: 'Operators you fly for' },
-  { type: 'aircraftTypes', label: 'Aircraft Types / Models', hint: 'e.g. AS350 B2' },
-  { type: 'aircraftRegs', label: 'Aircraft Registrations', hint: 'e.g. C-FXYZ' },
-  { type: 'locations', label: 'Common Locations', hint: 'Airports, pads, strips' },
-  { type: 'copilots', label: 'Co-pilots', hint: 'Frequent crew members' }
+  { type: 'pilots', label: 'Pilots', hint: 'Names that show up in the leg pilot field' },
+  { type: 'locations', label: 'Locations', hint: 'Common From / To values, e.g. field, swan hills' },
+  { type: 'aircraft', label: 'Aircraft', hint: 'Tail numbers or registrations, e.g. C-FIJI' }
 ];
 
 export function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [presets, setPresets] = useState<Record<PresetType, string[]>>({
-    companies: [],
-    aircraftTypes: [],
-    aircraftRegs: [],
+    pilots: [],
     locations: [],
-    copilots: []
+    aircraft: []
   });
   const [status, setStatus] = useState<'idle' | 'saved'>('idle');
 
@@ -112,13 +109,34 @@ export function ProfilePage() {
               onBlur={persistProfile}
             />
           </div>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2>Defaults</h2>
+        <p style={{ margin: '0 0 10px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+          Pre-fill these when starting a new log. You can always override them.
+        </p>
+        <div className="stack">
           <div>
-            <label htmlFor="defaultCompany">Default Company</label>
-            <input
-              id="defaultCompany"
-              value={profile.defaultCompany}
-              onChange={(e) => update('defaultCompany', e.target.value)}
-              onBlur={persistProfile}
+            <label htmlFor="defaultAircraft">Default Aircraft</label>
+            <Autocomplete
+              id="defaultAircraft"
+              value={profile.defaultAircraft}
+              options={presets.aircraft}
+              onChange={(v) => update('defaultAircraft', v)}
+              onCommit={() => persistProfile()}
+              autoCapitalize="characters"
+            />
+          </div>
+          <div>
+            <label htmlFor="defaultPilot">Default Pilot</label>
+            <Autocomplete
+              id="defaultPilot"
+              value={profile.defaultPilot}
+              options={presets.pilots}
+              onChange={(v) => update('defaultPilot', v)}
+              onCommit={() => persistProfile()}
             />
           </div>
         </div>

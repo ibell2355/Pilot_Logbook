@@ -2,25 +2,34 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { LegForm } from '../components/LegForm';
+import { Autocomplete } from '../components/Autocomplete';
+import { HoursInput } from '../components/HoursInput';
 import {
+  addPresetValue,
   deleteLeg,
   getAllPresets,
   getLog,
   getProfile,
+  getSettings,
   listLegs,
   saveLeg,
   saveLog,
-  saveSettings,
-  getSettings
+  saveSettings
 } from '../db/database';
-import type { Leg, Log, PresetType, Profile } from '../types';
+import type { Leg, Log, PresetType } from '../types';
 import {
   duplicateLegFrom,
   emptyLeg,
   nextLegFrom,
   returnLegFrom
 } from '../utils/legFactory';
-import { sumDurations } from '../utils/time';
+import {
+  computeTotals,
+  deriveLegs,
+  maintenanceStatus,
+  pilotSummaries
+} from '../utils/calculations';
+import { formatHours } from '../utils/time';
 import { exportLogPdf } from '../utils/pdf';
 import { downloadBackup } from '../utils/backup';
 
@@ -31,14 +40,12 @@ export function LogEditor() {
   const [log, setLog] = useState<Log | null>(null);
   const [legs, setLegs] = useState<Leg[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [presets, setPresets] = useState<Record<PresetType, string[]>>({
-    companies: [],
-    aircraftTypes: [],
-    aircraftRegs: [],
+    pilots: [],
     locations: [],
-    copilots: []
+    aircraft: []
   });
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   const refreshPresets = useCallback(async () => {
@@ -62,15 +69,15 @@ export function LogEditor() {
       }
       let legsToUse = loadedLegs;
       if (legsToUse.length === 0) {
-        const first = emptyLeg(logId, 0, loadedProfile.defaultCompany);
+        const first = emptyLeg(logId, 0, { pilot: loadedProfile.defaultPilot });
         await saveLeg(first);
         legsToUse = [first];
       }
       setLog(loadedLog);
       setLegs(legsToUse);
       setCurrentIndex(legsToUse.length - 1);
-      setProfile(loadedProfile);
       setPresets(loadedPresets);
+      setProfileLoaded(true);
       const settings = await getSettings();
       if (settings.currentLogId !== logId) {
         await saveSettings({ ...settings, currentLogId: logId });
@@ -81,23 +88,29 @@ export function LogEditor() {
     };
   }, [logId, navigate]);
 
-  // Debounced auto-save for current leg
   const saveTimer = useRef<number | null>(null);
   const pendingLeg = useRef<Leg | null>(null);
+  const pendingLog = useRef<Log | null>(null);
 
-  const scheduleSave = useCallback((leg: Leg) => {
-    pendingLeg.current = leg;
+  const scheduleSave = useCallback((leg: Leg | null, logUpdate: Log | null) => {
+    if (leg) pendingLeg.current = leg;
+    if (logUpdate) pendingLog.current = logUpdate;
     setStatus('saving');
     if (saveTimer.current != null) window.clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(async () => {
-      const toSave = pendingLeg.current;
-      if (!toSave) return;
+      const toSaveLeg = pendingLeg.current;
+      const toSaveLog = pendingLog.current;
       pendingLeg.current = null;
-      await saveLeg(toSave);
-      if (log) {
-        const nextLog = { ...log, updatedAt: Date.now() };
-        await saveLog(nextLog);
-        setLog(nextLog);
+      pendingLog.current = null;
+      if (toSaveLeg) await saveLeg(toSaveLeg);
+      if (toSaveLog) {
+        const next = { ...toSaveLog, updatedAt: Date.now() };
+        await saveLog(next);
+        setLog(next);
+      } else if (log) {
+        const next = { ...log, updatedAt: Date.now() };
+        await saveLog(next);
+        setLog(next);
       }
       setStatus('saved');
       window.setTimeout(() => {
@@ -117,9 +130,19 @@ export function LogEditor() {
   const onLegChange = useCallback(
     (next: Leg) => {
       setLegs((prev) => prev.map((l, i) => (i === currentIndex ? next : l)));
-      scheduleSave(next);
+      scheduleSave(next, null);
     },
     [currentIndex, scheduleSave]
+  );
+
+  const onLogChange = useCallback(
+    <K extends keyof Log>(key: K, value: Log[K]) => {
+      if (!log) return;
+      const next = { ...log, [key]: value };
+      setLog(next);
+      scheduleSave(null, next);
+    },
+    [log, scheduleSave]
   );
 
   const flushSave = async () => {
@@ -130,6 +153,10 @@ export function LogEditor() {
     if (pendingLeg.current) {
       await saveLeg(pendingLeg.current);
       pendingLeg.current = null;
+    }
+    if (pendingLog.current) {
+      await saveLog({ ...pendingLog.current, updatedAt: Date.now() });
+      pendingLog.current = null;
     }
   };
 
@@ -171,7 +198,7 @@ export function LogEditor() {
 
   const closeLog = async () => {
     if (!log) return;
-    if (!confirm('Close this log? You can still view and export it later.')) return;
+    if (!confirm('Close this log? You can reopen it later from Saved Logs.')) return;
     await flushSave();
     const closed: Log = {
       ...log,
@@ -200,8 +227,9 @@ export function LogEditor() {
   };
 
   const exportPdf = async () => {
-    if (!log || !profile) return;
+    if (!log) return;
     await flushSave();
+    const profile = await getProfile();
     const freshLegs = await listLegs(log.id);
     await exportLogPdf({ log, legs: freshLegs, profile });
   };
@@ -209,19 +237,32 @@ export function LogEditor() {
   const createBackup = async () => {
     if (!log) return;
     await flushSave();
+    const profile = await getProfile();
     const freshLegs = await listLegs(log.id);
     await downloadBackup({ log, legs: freshLegs, profile });
   };
 
   const totals = useMemo(() => {
-    return {
-      flight: sumDurations(legs.map((l) => l.totalFlightTime)),
-      actual: sumDurations(legs.map((l) => l.actualInstrument)),
-      simulated: sumDurations(legs.map((l) => l.simulatedInstrument))
-    };
-  }, [legs]);
+    if (!log) return null;
+    return computeTotals(log, legs);
+  }, [log, legs]);
 
-  if (!log || !current) {
+  const derived = useMemo(() => {
+    if (!log) return [];
+    return deriveLegs(log, legs);
+  }, [log, legs]);
+
+  const maint = useMemo(() => {
+    if (!log || !totals) return null;
+    return maintenanceStatus(log, totals);
+  }, [log, totals]);
+
+  const summaries = useMemo(() => {
+    if (!log) return [];
+    return pilotSummaries(log, legs);
+  }, [log, legs]);
+
+  if (!log || !current || !totals || !profileLoaded) {
     return (
       <Layout title="Loading…" showBack>
         <p className="empty">Loading log…</p>
@@ -229,58 +270,184 @@ export function LogEditor() {
     );
   }
 
+  const currentDerived = derived[currentIndex] ?? { airTime: null, flightTime: null };
+
+  const commitAircraftPreset = async (v: string) => {
+    if (v.trim()) {
+      await addPresetValue('aircraft', v.trim());
+      refreshPresets();
+    }
+  };
+
   return (
     <Layout
-      title={log.title}
+      title="Daily Flight Notes"
       showBack
       right={
         <span
           className="pill"
           style={{ fontSize: '0.7rem', padding: '2px 8px' }}
         >
-          {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : log.status === 'closed' ? 'Closed' : 'Auto-save'}
+          {status === 'saving'
+            ? 'Saving…'
+            : status === 'saved'
+            ? 'Saved'
+            : log.status === 'closed'
+            ? 'Closed'
+            : 'Auto-save'}
         </span>
       }
     >
       <section className="card">
-        <div className="totals">
-          <span>Legs: {legs.length}</span>
-          <span>Total: {totals.flight || '0:00'}</span>
+        <div className="row">
+          <div>
+            <label htmlFor="log-date">Date</label>
+            <input
+              id="log-date"
+              type="date"
+              value={log.date}
+              onChange={(e) => onLogChange('date', e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="log-aircraft">Aircraft</label>
+            <Autocomplete
+              id="log-aircraft"
+              value={log.aircraft}
+              options={presets.aircraft}
+              onChange={(v) => onLogChange('aircraft', v)}
+              onCommit={commitAircraftPreset}
+              autoCapitalize="characters"
+            />
+          </div>
         </div>
 
-        <ul className="leg-list" aria-label="Legs">
-          {legs.map((l, i) => (
-            <li
-              key={l.id}
-              className={i === currentIndex ? 'current' : ''}
-              onClick={() => selectLeg(i)}
-              role="button"
-              tabIndex={0}
-            >
-              <div>
-                <div className="leg-route">
-                  {(l.depLocation || '—')} → {(l.arrLocation || '—')}
+        <div className="row" style={{ marginTop: 10 }}>
+          <div>
+            <label htmlFor="log-hobbsStart">Hobbs Start</label>
+            <HoursInput
+              id="log-hobbsStart"
+              value={log.hobbsStart}
+              onChange={(v) => onLogChange('hobbsStart', v)}
+            />
+          </div>
+          <div>
+            <label htmlFor="log-taft">TAFT</label>
+            <HoursInput
+              id="log-taft"
+              value={log.taft}
+              onChange={(v) => onLogChange('taft', v)}
+            />
+          </div>
+          <div>
+            <label htmlFor="log-hook">Hook Time</label>
+            <HoursInput
+              id="log-hook"
+              value={log.hookTime}
+              onChange={(v) => onLogChange('hookTime', v)}
+            />
+          </div>
+        </div>
+      </section>
+
+      {maint && (
+        <section className={`card maint maint--${maint.state}`}>
+          <div className="maint__row">
+            <strong>Inspection</strong>
+            <span className="maint__label">{maint.label}</span>
+          </div>
+          <div className="maint__details">
+            <span>
+              Due at:{' '}
+              <strong>
+                {maint.dueAt != null ? formatHours(maint.dueAt) : '—'}
+              </strong>
+            </span>
+            <span>
+              Current Hobbs:{' '}
+              <strong>
+                {maint.currentHobbs != null
+                  ? formatHours(maint.currentHobbs)
+                  : '—'}
+              </strong>
+            </span>
+            <span>
+              Due in:{' '}
+              <strong>
+                {maint.dueIn != null ? formatHours(maint.dueIn) : '—'}
+              </strong>
+            </span>
+          </div>
+          <div className="maint__edit">
+            <label htmlFor="log-dueAt">Hobbs Due At</label>
+            <HoursInput
+              id="log-dueAt"
+              value={log.hobbsDueAt}
+              onChange={(v) => onLogChange('hobbsDueAt', v)}
+            />
+          </div>
+        </section>
+      )}
+
+      <section className="card">
+        <div className="totals">
+          <span>Air {formatHours(totals.totalAirTime)}</span>
+          <span>Flight {formatHours(totals.totalFlightTime)}</span>
+          <span>Lndg {totals.totalLandings}</span>
+        </div>
+        <div className="totals" style={{ marginTop: 6 }}>
+          <span>
+            TAFT End{' '}
+            {totals.taftEnd != null ? formatHours(totals.taftEnd) : '—'}
+          </span>
+          <span>
+            Hook End{' '}
+            {totals.hookTimeEnd != null
+              ? formatHours(totals.hookTimeEnd)
+              : '—'}
+          </span>
+        </div>
+
+        <ul className="leg-list" aria-label="Legs" style={{ marginTop: 12 }}>
+          {legs.map((l, i) => {
+            const d = derived[i] ?? { airTime: null, flightTime: null };
+            return (
+              <li
+                key={l.id}
+                className={i === currentIndex ? 'current' : ''}
+                onClick={() => selectLeg(i)}
+                role="button"
+                tabIndex={0}
+              >
+                <div>
+                  <div className="leg-route">
+                    {(l.from || '—')} → {(l.to || '—')}
+                  </div>
+                  <div className="leg-meta">
+                    #{i + 1} · {l.pilot || 'no pilot'}
+                    {l.hobbsReading != null
+                      ? ` · Hobbs ${formatHours(l.hobbsReading)}`
+                      : ''}
+                  </div>
                 </div>
-                <div className="leg-meta">
-                  #{i + 1} · {l.date}
-                  {l.depTime && l.arrTime ? ` · ${l.depTime}–${l.arrTime}` : ''}
+                <div className="leg-time">
+                  {d.flightTime != null ? formatHours(d.flightTime) : '—'}
                 </div>
-              </div>
-              <div className="leg-time">{l.totalFlightTime || '—'}</div>
-              {legs.length > 1 && (
-                <button
-                  className="icon-btn danger"
-                  aria-label="Remove leg"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeLeg(l);
-                  }}
-                >
-                  ✕
-                </button>
-              )}
-            </li>
-          ))}
+                {legs.length > 1 && (
+                  <button
+                    className="icon-btn danger"
+                    aria-label="Remove leg"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeLeg(l);
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </section>
 
@@ -289,10 +456,29 @@ export function LogEditor() {
         <LegForm
           leg={current}
           presets={presets}
+          airTime={currentDerived.airTime}
+          flightTime={currentDerived.flightTime}
           onChange={onLegChange}
           onPresetsRefresh={refreshPresets}
         />
       </section>
+
+      {summaries.length > 0 && (
+        <section className="card">
+          <h2>Pilot summaries</h2>
+          <ul className="pilot-summary">
+            {summaries.map((s) => (
+              <li key={s.pilot}>
+                <span>{s.pilot}</span>
+                <span>
+                  Air {formatHours(s.airTime)} · Flight{' '}
+                  {formatHours(s.flightTime)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="card">
         <div className="stack">

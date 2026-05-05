@@ -34,14 +34,14 @@ export interface PilotLogbookDB extends DBSchema {
 }
 
 const DB_NAME = 'pilot-logbook';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<PilotLogbookDB>> | null = null;
 
 export function getDB(): Promise<IDBPDatabase<PilotLogbookDB>> {
   if (!dbPromise) {
     dbPromise = openDB<PilotLogbookDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion, _newVersion, tx) {
         if (!db.objectStoreNames.contains('profile')) {
           db.createObjectStore('profile', { keyPath: 'id' });
         }
@@ -59,6 +59,16 @@ export function getDB(): Promise<IDBPDatabase<PilotLogbookDB>> {
           const store = db.createObjectStore('legs', { keyPath: 'id' });
           store.createIndex('by-logId', 'logId');
         }
+
+        // v1 → v2: schema for logs/legs and presets changed shape entirely.
+        // The previous build was an early proof of concept, so we drop legacy
+        // entries rather than attempt a lossy partial migration.
+        if (oldVersion > 0 && oldVersion < 2) {
+          tx.objectStore('logs').clear();
+          tx.objectStore('legs').clear();
+          tx.objectStore('presets').clear();
+          tx.objectStore('profile').clear();
+        }
       }
     });
   }
@@ -71,7 +81,8 @@ const DEFAULT_PROFILE: Profile = {
   licenceNumber: '',
   employeeNumber: '',
   homeBase: '',
-  defaultCompany: ''
+  defaultAircraft: '',
+  defaultPilot: ''
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -80,9 +91,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   currentLogId: null
 };
 
+export const PRESET_TYPES: PresetType[] = ['pilots', 'locations', 'aircraft'];
+
 export async function getProfile(): Promise<Profile> {
   const db = await getDB();
-  return (await db.get('profile', 'default')) ?? { ...DEFAULT_PROFILE };
+  const stored = await db.get('profile', 'default');
+  return { ...DEFAULT_PROFILE, ...(stored ?? {}), id: 'default' };
 }
 
 export async function saveProfile(profile: Profile): Promise<void> {
@@ -107,16 +121,9 @@ export async function getPresets(type: PresetType): Promise<string[]> {
 }
 
 export async function getAllPresets(): Promise<Record<PresetType, string[]>> {
-  const types: PresetType[] = [
-    'companies',
-    'aircraftTypes',
-    'aircraftRegs',
-    'locations',
-    'copilots'
-  ];
   const result = {} as Record<PresetType, string[]>;
   await Promise.all(
-    types.map(async (t) => {
+    PRESET_TYPES.map(async (t) => {
       result[t] = await getPresets(t);
     })
   );
