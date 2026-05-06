@@ -12,6 +12,7 @@ import {
   getProfile,
   getSettings,
   listLegs,
+  removePresetValue,
   saveLeg,
   saveLog,
   saveSettings
@@ -279,6 +280,11 @@ export function LogEditor() {
     }
   };
 
+  const removeAircraftPreset = async (v: string) => {
+    await removePresetValue('aircraft', v);
+    refreshPresets();
+  };
+
   return (
     <Layout
       title="Daily Flight Notes"
@@ -317,6 +323,7 @@ export function LogEditor() {
               options={presets.aircraft}
               onChange={(v) => onLogChange('aircraft', v)}
               onCommit={commitAircraftPreset}
+              onRemove={removeAircraftPreset}
               autoCapitalize="characters"
             />
           </div>

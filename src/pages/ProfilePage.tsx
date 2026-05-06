@@ -126,6 +126,7 @@ export function ProfilePage() {
               options={presets.aircraft}
               onChange={(v) => update('defaultAircraft', v)}
               onCommit={() => persistProfile()}
+              onRemove={(v) => removePresetValue('aircraft', v)}
               autoCapitalize="characters"
             />
           </div>
@@ -137,6 +138,7 @@ export function ProfilePage() {
               options={presets.pilots}
               onChange={(v) => update('defaultPilot', v)}
               onCommit={() => persistProfile()}
+              onRemove={(v) => removePresetValue('pilots', v)}
             />
           </div>
         </div>

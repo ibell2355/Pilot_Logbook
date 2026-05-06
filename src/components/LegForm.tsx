@@ -2,7 +2,7 @@ import type { Leg, PresetType } from '../types';
 import { Autocomplete } from './Autocomplete';
 import { Counter } from './Counter';
 import { HoursInput } from './HoursInput';
-import { addPresetValue } from '../db/database';
+import { addPresetValue, removePresetValue } from '../db/database';
 import { formatHours } from '../utils/time';
 
 interface LegFormProps {
@@ -35,6 +35,11 @@ export function LegForm({
     onPresetsRefresh();
   };
 
+  const dropPreset = async (type: PresetType, value: string) => {
+    await removePresetValue(type, value);
+    onPresetsRefresh();
+  };
+
   return (
     <div className="stack">
       <div>
@@ -45,6 +50,7 @@ export function LegForm({
           options={presets.pilots}
           onChange={(v) => update('pilot', v)}
           onCommit={(v) => commitPreset('pilots', v)}
+          onRemove={(v) => dropPreset('pilots', v)}
           placeholder="Pilot name"
         />
       </div>
@@ -58,6 +64,7 @@ export function LegForm({
             options={presets.locations}
             onChange={(v) => update('from', v)}
             onCommit={(v) => commitPreset('locations', v)}
+            onRemove={(v) => dropPreset('locations', v)}
             placeholder="e.g. field"
           />
         </div>
@@ -69,6 +76,7 @@ export function LegForm({
             options={presets.locations}
             onChange={(v) => update('to', v)}
             onCommit={(v) => commitPreset('locations', v)}
+            onRemove={(v) => dropPreset('locations', v)}
             placeholder="e.g. swan hills"
           />
         </div>

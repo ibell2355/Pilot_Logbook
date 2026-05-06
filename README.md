@@ -30,19 +30,36 @@ npm run typecheck    # tsc --noEmit
 ## How local storage works
 
 All working data is stored in a single IndexedDB database named
-`pilot-logbook`, with object stores for:
+`pilot-logbook` (schema version **2**), with object stores for:
 
-- `profile` — pilot name, licence, employee number, home base, default company
-- `presets` — reusable lists for companies, aircraft types, registrations,
-  locations, and co-pilots
+- `profile` — pilot name, licence, employee number, home base, default
+  aircraft, default pilot
+- `presets` — reusable lists for **pilots, locations, aircraft**
 - `settings` — theme, current working log id
-- `logs` — one record per log (open or closed)
-- `legs` — one record per leg, indexed by log id
+- `logs` — one record per daily flight-notes log (open or closed),
+  including aircraft, Hobbs Start, TAFT, Hook Time, inspection interval,
+  and Hobbs-due-at
+- `legs` — one record per leg (pilot, from, to, hobbs reading, landings,
+  start-up count, shutdown count, notes), indexed by log id
+
+Air Time and Flight Time are **derived**, never stored:
+`airTime = currentHobbs − previousHobbs (or HobbsStart for leg 1)` and
+`flightTime = airTime + 0.1·startUps + 0.1·shutdowns`.
 
 Edits are auto-saved while the pilot types (debounced ~400 ms). There is no
 manual "save" button — pressing **Next Leg**, **Return Leg**, or
 **Duplicate Leg** commits whatever is currently on screen and opens a new
 leg prefilled per the rules below.
+
+### v1 → v2 migration
+
+The first proof of concept used a generic logbook schema (HH:mm times,
+PIC/SIC, VFR/IFR, etc.). The v2 model is reshaped around the **Pilot Daily
+Flight Notes** workflow. On first open after the upgrade, the IndexedDB
+upgrade hook **clears the legacy `logs`, `legs`, `presets`, and `profile`
+stores** because no fields map cleanly. This runs once, on the bump from
+DB version 1 to 2 (`src/db/database.ts`). Backups exported from a v1 build
+(`"version": 1`) will not import; they predate this redesign.
 
 Because data lives in the browser, **clearing this browser's site data,
 using a private window, or reinstalling the PWA can remove your logs.**
@@ -51,12 +68,14 @@ screen shows a warning about this.
 
 ### Carry-forward rules for Next / Return / Duplicate Leg
 
-- **Next Leg** — keeps `date, company, aircraft type, aircraft registration,
-  co-pilot, pilot role, day/night, VFR/IFR`. Sets the new departure to the
-  previous arrival. Clears arrival, times, total flight time, remarks, and
-  instrument times.
-- **Return Leg** — same carry-forward, plus sets the new arrival to the
-  previous departure (quick round-trip).
+The log already owns date and aircraft, so legs only carry the per-leg
+fields:
+
+- **Next Leg** — keeps `pilot`. Sets the new `from` to the previous `to`.
+  Clears `to`, `hobbsReading`, `landings`, `startUpCount`, `shutdownCount`,
+  and `notes`.
+- **Return Leg** — same as Next, plus sets the new `to` to the previous
+  `from` (quick round-trip).
 - **Duplicate Leg** — exact copy; edit only what changed.
 
 ## What "Create Backup" does
@@ -74,7 +93,7 @@ Backup format:
 ```json
 {
   "format": "pilot-logbook-backup",
-  "version": 1,
+  "version": 2,
   "exportedAt": 1713600000000,
   "profile": { ... },
   "log": { ... },
@@ -84,13 +103,17 @@ Backup format:
 
 ## What "Export PDF" does
 
-Generates a clean one-log-per-file PDF sized for letter paper (landscape):
+Generates a **Pilot Daily Flight Notes** PDF sized for letter paper
+(landscape):
 
-- Pilot profile header (name, licence, employee number, home base, company,
-  period covered)
-- Aggregate totals (total flight time, actual and simulated instrument)
-- Every leg rendered as a tabular log sheet
-- A signature / date line
+- Header: title, pilot name, Aircraft + Date row, Hobbs Start / TAFT /
+  Hook Time row
+- Inspection summary (when an Hobbs-due-at is set): Due at, Minus 10,
+  Plus 10, Due in
+- Leg table: Pilot · From · To · Hobbs Reading · Air Time · Landings ·
+  Start Up · Shutdown · Flight Time, with totals row
+- End-of-day block: TAFT End, Hook Time End, Total Air, Total Flight
+- Per-pilot summary: Air Time and Flight Time per pilot
 
 The PDF has no generated timestamp, no internal ids, and no developer-looking
 jargon. The pilot can share or save it using their phone's normal share
@@ -105,25 +128,30 @@ company-specific template without touching the rest of the app.
 src/
   App.tsx                    routes
   main.tsx                   entry + HashRouter
-  types.ts                   data models
-  db/database.ts             idb schema + CRUD helpers
+  types.ts                   data models (Log, Leg, Profile, Presets)
+  db/database.ts             idb schema (v2) + CRUD helpers
   hooks/useTheme.ts          theme selection + persistence
   components/
     Layout.tsx               top bar + drawer menu
-    LegForm.tsx              leg data entry
+    LegForm.tsx              leg data entry (pilot, from/to, hobbs, counters)
+    Counter.tsx              +/- counter for landings / start ups / shutdowns
+    HoursInput.tsx           decimal-hours numeric input
     Autocomplete.tsx         suggestions from preset lists
     Segmented.tsx            small segmented control
   pages/
-    Home.tsx                 start / resume / saved logs / work hours (disabled)
-    LogEditor.tsx            open log: leg list, form, action bar
+    Home.tsx                 Start New Log / View Saved Logs / Work Hours (disabled)
+    NewLog.tsx               start-of-log fields with prior-log pre-fill
+    LogEditor.tsx            open log: header, maintenance alert, legs, totals
     SavedLogs.tsx            list + import backup
-    ProfilePage.tsx          pilot details + preset management
-    SettingsPage.tsx         theme, storage status, backup notes
+    ProfilePage.tsx          pilot details + defaults + preset management
+    SettingsPage.tsx         theme, storage status, backup warning
   utils/
-    time.ts                  24h time math, duration, today helpers
+    time.ts                  decimal-hours helpers, today/format helpers
+    calculations.ts          deriveLegs, computeTotals, pilotSummaries,
+                             maintenanceStatus
     legFactory.ts            empty / next / return / duplicate leg builders
-    pdf.ts                   jsPDF template (swappable per company)
-    backup.ts                JSON backup export + import
+    pdf.ts                   Pilot Daily Flight Notes PDF (jsPDF)
+    backup.ts                JSON backup v2 export + import
     download.ts              blob download helper
     ids.ts                   id generation (date + random suffix)
 ```
@@ -131,9 +159,15 @@ src/
 ## Deploying to GitHub Pages
 
 The app ships with a single GitHub Actions workflow
-(`.github/workflows/deploy.yml`) that runs `npm ci && npm run build` and
-publishes `dist/` via the official `actions/deploy-pages` action on every
-push to `main`.
+(`.github/workflows/deploy.yml`) that:
+
+1. checks out `main`,
+2. runs `npm ci && npm run build`,
+3. copies `dist/index.html` to `dist/404.html` as a fallback,
+4. uploads `dist/` and publishes it via `actions/deploy-pages@v4`.
+
+It runs on every push to `main` and on manual `workflow_dispatch`. **No
+local build step is required** — pushing source to `main` is the deploy.
 
 ### First-time setup
 
@@ -141,9 +175,10 @@ push to `main`.
 2. Push to `main`. The workflow builds and deploys.
 3. Visit `https://<your-user>.github.io/Pilot_Logbook/`.
 
-If GitHub previously auto-added a second "Deploy static content to Pages"
-workflow (`static.yml`), delete it — only `deploy.yml` should exist, or the
-two will race and a raw-source deploy can overwrite the built site.
+There is **no** `static.yml` workflow in this repo — earlier auto-generated
+copies have been deleted. If GitHub later re-adds one, delete it; only
+`deploy.yml` should be present, or the two will race and a raw-source
+deploy can overwrite the built site.
 
 ### Base path
 

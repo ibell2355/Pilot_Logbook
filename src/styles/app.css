@@ -407,15 +407,49 @@ label {
 }
 
 .autocomplete__item {
-  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 10px 12px;
   cursor: pointer;
   color: var(--text);
+  min-height: 44px;
 }
 
 .autocomplete__item:hover,
 .autocomplete__item.active {
   background: var(--pill-bg);
   color: var(--pill-text);
+}
+
+.autocomplete__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autocomplete__remove {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.autocomplete__remove:hover {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
 }
 
 .segmented {

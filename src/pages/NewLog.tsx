@@ -10,6 +10,7 @@ import {
   getSettings,
   listLegs,
   listLogs,
+  removePresetValue,
   saveLog,
   saveSettings
 } from '../db/database';
@@ -156,6 +157,16 @@ export function NewLog() {
                 value={aircraft}
                 options={presets.aircraft}
                 onChange={(v) => setAircraft(v)}
+                onCommit={async (v) => {
+                  if (v.trim()) {
+                    await addPresetValue('aircraft', v.trim());
+                    setPresets(await getAllPresets());
+                  }
+                }}
+                onRemove={async (v) => {
+                  await removePresetValue('aircraft', v);
+                  setPresets(await getAllPresets());
+                }}
                 placeholder="e.g. C-FIJI"
                 autoCapitalize="characters"
               />

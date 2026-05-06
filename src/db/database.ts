@@ -144,6 +144,12 @@ export async function addPresetValue(type: PresetType, value: string): Promise<v
   await savePresets(type, [...existing, trimmed]);
 }
 
+export async function removePresetValue(type: PresetType, value: string): Promise<void> {
+  const existing = await getPresets(type);
+  const next = existing.filter((v) => v.toLowerCase() !== value.toLowerCase());
+  if (next.length !== existing.length) await savePresets(type, next);
+}
+
 export async function listLogs(): Promise<Log[]> {
   const db = await getDB();
   const logs = await db.getAll('logs');
